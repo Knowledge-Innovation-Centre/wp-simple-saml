@@ -132,6 +132,7 @@ function login_form_link() {
 
 	$redirect_url = get_redirection_url();
 
+	$logintext = 'Login via '. Admin\get_sso_settings( 'sso_idp_label' );
 	$output = sprintf(
 		'<div style="padding:8px; background: #fff; text-align: center;"><a href="%s" id="login-via-sso">%s</a></div>',
 		esc_url( add_query_arg( 'redirect_to', urlencode( $redirect_url ), home_url( 'sso/login/' ) ) ), // @codingStandardsIgnoreLine
@@ -140,7 +141,8 @@ function login_form_link() {
 		 *
 		 * @return string Text to be used for the login button
 		 */
-		esc_html( apply_filters( 'wpsimplesaml_log_in_text', __( 'SSO Login', 'wp-simple-saml' ) ) )
+		
+		esc_html( apply_filters( 'wpsimplesaml_log_in_text', __( $logintext, 'wp-simple-saml' ) ) )
 	);
 
 	echo $output; // WPCS: xss ok
@@ -284,13 +286,14 @@ function action_verify() {
 }
 
 /**
- * Get metadata of SP
+ * Output metadata of SP
  *
- * @return string|\WP_Error
+ * @action wpsimplesaml_action_metadata
  */
-function get_metadata() {
-	$settings = instance()->getSettings();
-
+function action_metadata() {
+	$auth     = instance();
+	$settings = $auth->getSettings();
+	$metadata = null;
 	try {
 		$metadata = $settings->getSPMetadata();
 		$errors   = $settings->validateMetadata( $metadata );
@@ -298,26 +301,7 @@ function get_metadata() {
 		$errors = $e->getMessage();
 	}
 
-	if ( empty( $errors ) ) {
-		return $metadata;
-	}
-
-	return new \WP_Error(
-		'wpsimplesaml_invalid_settings',
-		esc_html__( 'Invalid SSO settings. Contact your administrator.', 'wp-simple-saml' ),
-		$errors
-	);
-}
-
-/**
- * Output metadata of SP
- *
- * @action wpsimplesaml_action_metadata
- */
-function action_metadata() {
-	$metadata = get_metadata();
-
-	if ( is_wp_error( $metadata ) ) {
+	if ( $errors ) {
 		wp_die( esc_html__( 'Invalid SSO settings. Contact your administrator.', 'wp-simple-saml' ) );
 	}
 
@@ -327,14 +311,12 @@ function action_metadata() {
 }
 
 /**
- * @return Auth|\WP_Error
+ * Handle authentication responses
+ *
+ * @return \WP_User|\WP_Error
  */
-function process_response() {
+function get_sso_user() {
 	$saml = instance();
-
-	if ( ! $saml ) {
-		return new \WP_Error( 'no-saml-instance', esc_html__( 'Unable to get instance of SAML2 Auth object.', 'wp-simple-saml' ) );
-	}
 
 	try {
 		$config = Admin\get_config();
@@ -378,21 +360,6 @@ function process_response() {
 
 	if ( ! $saml->isAuthenticated() ) {
 		return new \WP_Error( 'not-authenticated', esc_html__( 'Error: Authentication wasn\'t completed successfully.', 'wp-simple-saml' ) );
-	}
-
-	return $saml;
-}
-
-/**
- * Handle authentication responses
- *
- * @return \WP_User|\WP_Error
- */
-function get_sso_user() {
-	$saml = process_response();
-
-	if ( is_wp_error( $saml ) ) {
-		return $saml;
 	}
 
 	return get_or_create_wp_user( $saml );
@@ -615,7 +582,14 @@ function signon( $user ) {
 function cross_site_sso_redirect( $url ) {
 
 	$host          = wp_parse_url( $url, PHP_URL_HOST );
-	$allowed_hosts = array_map( 'trim', explode( ',', Admin\get_sso_settings( 'sso_whitelisted_hosts' ) ) );
+	//Choose to whitelist all sites or those indicated
+	if ( Admin\get_sso_settings( 'sso_whitelist_all_hosts' ) ) {
+		$sites = get_sites();
+		$sitelist = implode (',',array_column($sites, 'domain'));
+		$allowed_hosts = explode(',', $sitelist);
+	} else {
+		$allowed_hosts = explode( ',', Admin\get_sso_settings( 'sso_whitelisted_hosts' ) );
+	} 
 
 	/**
 	 * Filters the allowed hosts for cross-site SSO redirection

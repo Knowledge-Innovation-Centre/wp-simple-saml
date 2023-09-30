@@ -131,9 +131,11 @@ function get_sso_settings( $option = null ) {
 		'sso_enabled'           => '',
 		'sso_debug'             => 0,
 		'sso_sp_base'           => is_sso_enabled_network_wide() ? get_home_url( get_network()->site_id, '/' ) : home_url( '/' ),
+		'sso_whitelist_all_hosts' => 0,
 		'sso_role_management'   => '',
 		'sso_whitelisted_hosts' => '',
 		'sso_idp_metadata'      => '',
+		'sso_idp_label'         => 'Provider',
 	];
 
 	// Network options is used instead if the plugin is activated network-wide
@@ -198,6 +200,14 @@ function settings_fields() {
 		<?php
 	}, $settings_section, 'sso_settings' );
 
+	register_setting( $settings_section, 'sso_idp_label' );
+	add_settings_field( 'sso_idp_label', __( 'Name of IDP Provider', 'wp-simple-saml' ), function () use ( $options ) {
+		$value = $options['sso_idp_label'];
+		?>
+		<input type="text" name="sso_idp_label" id="sso_idp_label" value="<?php echo esc_attr( $value ); ?>"/>
+		<?php
+	}, $settings_section, 'sso_settings' );
+
 	register_setting( $settings_section, 'sso_idp_metadata' );
 	add_settings_field( 'sso_idp_metadata', __( 'SSO IdP Metadata', 'wp-simple-saml' ), function () use ( $options ) {
 		remove_filter( 'wpsimplesaml_idp_metadata_xml', __NAMESPACE__ . '\\get_config_from_db' );
@@ -237,6 +247,14 @@ function settings_fields() {
 		?>
 		<input type="text" name="sso_whitelisted_hosts" id="sso_whitelisted_hosts" value="<?php echo esc_attr( $value ); ?>"/>
 		<br/><small><?php esc_html_e( 'Separate hosts by comma', 'wp-simple-saml' ); ?></small>
+		<?php
+	}, $settings_section, 'sso_settings' );
+
+	register_setting( $settings_section, 'sso_whitelist_all_hosts', 'absint' );
+	add_settings_field( 'sso_whitelist_all_hosts', __( 'Whitelist All Hosts', 'wp-simple-saml' ), function () use ( $options ) {
+		$value = $options['sso_whitelist_all_hosts'];
+		?>
+		<input type="checkbox" name="sso_whitelist_all_hosts" id="sso_whitelist_all_hosts" value="1" <?php checked( $value ); ?>>
 		<?php
 	}, $settings_section, 'sso_settings' );
 
@@ -335,6 +353,12 @@ function save_network_settings_fields() {
 		delete_site_option( 'sso_debug' ); // WPCS input var ok
 	}
 
+	if ( isset( $_POST['sso_whitelist_all_hosts'] ) ) { // WPCS input var ok
+		update_site_option( 'sso_whitelist_all_hosts', absint( $_POST['sso_whitelist_all_hosts'] ) ); // WPCS input var ok
+	} else {
+		delete_site_option( 'sso_whitelist_all_hosts' ); // WPCS input var ok
+	}
+
 	if ( isset( $_POST['sso_sp_base'] ) ) { // WPCS input var ok
 		update_site_option( 'sso_sp_base', esc_url_raw( wp_unslash( $_POST['sso_sp_base'] ) ) ); // WPCS input var ok
 	}
@@ -349,6 +373,10 @@ function save_network_settings_fields() {
 
 	if ( isset( $_POST['sso_idp_metadata'] ) ) { // WPCS input var ok
 		update_site_option( 'sso_idp_metadata', wp_unslash( $_POST['sso_idp_metadata'] ) ); // WPCS input var ok
+	}
+
+	if ( isset( $_POST['sso_idp_label'] ) ) { // WPCS input var ok
+		update_site_option( 'sso_idp_label', wp_unslash( $_POST['sso_idp_label'] ) ); // WPCS input var ok
 	}
 }
 

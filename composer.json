@@ -18,5 +18,10 @@
 	},
 	"require-dev": {
 		"humanmade/coding-standards": "dev-master"
+	},
+	"config": {
+		"allow-plugins": {
+			"dealerdirect/phpcodesniffer-composer-installer": true
+		}
 	}
 }
